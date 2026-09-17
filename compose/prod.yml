@@ -1,0 +1,36 @@
+# Production overlay — GHCR images pinned by SHA (FRONTEND_TAG / PANEL_TAG).
+# Do not set those tags to `staging`, `latest`, or `prod`. Promotion is a
+# deliberate retag of a git SHA. See README.
+
+services:
+  frontend:
+    image: ghcr.io/sarasprzimmer/oxytrip-frontend:${FRONTEND_TAG:?set FRONTEND_TAG to a git SHA}
+    pull_policy: always
+    user: "0:0"
+    volumes:
+      - frontend_next_cache:/app/.next/cache
+
+  panel:
+    image: ghcr.io/sarasprzimmer/oxytripcms:${PANEL_TAG:?set PANEL_TAG to a git SHA}
+    pull_policy: always
+    environment:
+      PORT: "8080"
+      NODE_ENV: production
+
+  edge:
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:?set SITE_DOMAIN}
+      PANEL_DOMAIN: ${PANEL_DOMAIN:?set PANEL_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:
+  frontend_next_cache:

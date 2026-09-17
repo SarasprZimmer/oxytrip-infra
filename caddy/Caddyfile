@@ -1,0 +1,40 @@
+# Production edge — host-based routing. TLS from Let's Encrypt.
+# Panel expects path-based /cms and /bot on its own hostname (see Oxytrip-cms Caddyfile).
+
+{
+	admin off
+	email {$ACME_EMAIL}
+}
+
+(common_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+}
+
+{$SITE_DOMAIN} {
+	import common_headers
+	reverse_proxy frontend:3000
+}
+
+{$PANEL_DOMAIN} {
+	import common_headers
+
+	# SSE for the support bot — must not buffer (panel Caddyfile flush_interval -1).
+	handle /bot/* {
+		reverse_proxy panel:8080 {
+			flush_interval -1
+		}
+	}
+
+	handle /cms* {
+		reverse_proxy panel:8080
+	}
+
+	handle {
+		reverse_proxy panel:8080
+	}
+}

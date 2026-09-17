@@ -1,0 +1,61 @@
+# Local edge — single host, path split. tls internal (no public certs).
+# Site at / ; panel at /cms/* and /bot/* (matches unified panel routing).
+
+{
+	admin off
+}
+
+(common_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+}
+
+localhost {
+	import common_headers
+	tls internal
+
+	handle /bot/* {
+		reverse_proxy panel:8080 {
+			flush_interval -1
+		}
+	}
+
+	handle /cms* {
+		reverse_proxy panel:8080
+	}
+
+	handle /api/health {
+		reverse_proxy frontend:3000
+	}
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+}
+
+127.0.0.1 {
+	import common_headers
+	tls internal
+
+	handle /bot/* {
+		reverse_proxy panel:8080 {
+			flush_interval -1
+		}
+	}
+
+	handle /cms* {
+		reverse_proxy panel:8080
+	}
+
+	handle /api/health {
+		reverse_proxy frontend:3000
+	}
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

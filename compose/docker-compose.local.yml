@@ -1,0 +1,66 @@
+# Local overlay — build from sibling repos, internal TLS, path-split routing on localhost.
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    networks:
+      - app
+    volumes:
+      - mongo_data:/data/db
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ../../oxytrip-frontend
+      # Relative to the frontend build context (sibling of this repo).
+      dockerfile: ../oxytrip-infra/docker/frontend.Dockerfile
+      args:
+        NEXT_PUBLIC_BASE_URL: https://localhost
+        NEXT_PUBLIC_CMS_PROVIDER: payload
+        NEXT_PUBLIC_BOT_URL: https://localhost/bot
+        NEXT_PUBLIC_BOT_WEBHOOK_SECRET: local-webhook-secret-min-16
+        NEXT_IMAGE_UNOPTIMIZED: "true"
+    image: oxytrip-frontend:local
+
+  panel:
+    build:
+      context: ../../Oxytrip-cms/oxytrip-cms
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SERVER_URL: https://localhost/cms
+    image: oxytrip-panel:local
+    environment:
+      PORT: "8080"
+      MONGODB_URI: mongodb://mongo:27017/oxytrip-cms
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  edge:
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ../caddy/Caddyfile.local:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      frontend:
+        condition: service_started
+      panel:
+        condition: service_started
+
+volumes:
+  mongo_data:
+  caddy_data:
+  caddy_config:

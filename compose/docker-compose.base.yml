@@ -1,0 +1,85 @@
+# Shared service definitions — no env files, no published ports, no build contexts.
+# Overlays: docker-compose.local.yml | docker-compose.prod.yml
+
+name: oxytrip
+
+networks:
+  app:
+    driver: bridge
+
+services:
+  frontend:
+    image: oxytrip-frontend:local
+    restart: unless-stopped
+    env_file:
+      - ../env/frontend.env
+    networks:
+      - app
+    expose:
+      - "3000"
+    volumes:
+      - ../scripts/frontend-healthcheck.mjs:/app/healthcheck.mjs:ro
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "/app/healthcheck.mjs",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  panel:
+    image: oxytrip-panel:local
+    restart: unless-stopped
+    env_file:
+      - ../env/panel.env
+    networks:
+      - app
+    expose:
+      - "8080"
+    deploy:
+      resources:
+        limits:
+          memory: 2048M
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8080/bot/health').then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 120s
+
+  edge:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    networks:
+      - app
+    volumes:
+      - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    depends_on:
+      frontend:
+        condition: service_started
+      panel:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "--no-check-certificate", "https://127.0.0.1/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s

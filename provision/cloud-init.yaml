@@ -1,0 +1,157 @@
+#cloud-config
+# OxyTrip host bootstrap — hardened, Docker-ready, no app deploy.
+# Paste as DigitalOcean user-data (or: doctl compute droplet create --user-data-file …).
+# Public keys only; never embed private keys or API tokens here.
+
+timezone: UTC
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - ufw
+  - fail2ban
+  - unattended-upgrades
+  - apt-listchanges
+  - ca-certificates
+  - curl
+  - gnupg
+  - lsb-release
+  - git
+  - jq
+
+groups:
+  - docker
+
+users:
+  - name: deploy
+    gecos: OxyTrip deploy
+    primary_group: deploy
+    groups: [sudo, docker]
+    shell: /bin/bash
+    lock_passwd: true
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIyOV+hdwO6ubPnXvCMDY8wke8KO2deHBLqb6wZ5Eclm sarasepehrirahnama@gmail.com
+      - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDIFWm6lhR9t4E/NXepJeGoO7OxipxA3h1XnS0v6e+9x4ffN5p154F87Y9fQcQ2GUfWcOaR5PqLte1JuqdoTJ3ujhfZQyK02bNRgMUwZTzr8yMGpA6auyk2dOgPoiUjhmcUb4aJeLtGHMfAtxJHprzgYV2ZUix6SH52G9reb5vkyzLRjEq5vldeORPFh4OxRKSaCUL5Uki5Dan2vtSalnLzC0wYrnLn0BKAbeD/V9hG+LDBDLPAvzS3psDLEYwucLyG1SIbmTTD7O57Nr+9ADE1xBsfphj5SiOfln9GX1LyEHCoaOJYF3NxnucVDYsGaDXjjYJ5xIBSwlDEGIxqoXVGW9FkMvHDbHTGPYLvp1+EKLr/BrI+hD0WJCWocLYpV+SnhJdj0ozLtSwp50wbkAhMKm/g+dG6tt/mpt6lk5xQJyKKazQtJE41wwGJGXy6UsSEvBaXMPkGYdtc1kufrtExUslI8t9qe/kC00E8RSoLKXvdlidp2Pc7MtRHi2UvWQGOVIWV4iXhJmony/uIsCrJlYe6/gzIqG2L4J3uoARAVS6ySj8bRy3A8Fr1ICL5I/I+oNsCeyFFRRhoenYx4vaHzorEaHNNYRleMC2yrDdxwHw7sS9SJCuEd7Qt7hnOH2OTwv4FiQBFxnXN5K8HWFRKqw4Nbw+HILru0ps94YHv6Q== sarasepehrirahnama@gmail.com
+
+# Prefer the fragment under sshd_config.d (Ubuntu 24.04). disable_root / ssh_pwauth
+# reinforce the same policy at cloud-init level.
+disable_root: true
+ssh_pwauth: false
+
+write_files:
+  - path: /etc/ssh/sshd_config.d/99-oxytrip-hardening.conf
+    owner: root:root
+    permissions: "0644"
+    content: |
+      PermitRootLogin no
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      ChallengeResponseAuthentication no
+      PubkeyAuthentication yes
+
+  - path: /etc/docker/daemon.json
+    owner: root:root
+    permissions: "0644"
+    content: |
+      {
+        "log-driver": "local",
+        "log-opts": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      }
+
+  - path: /etc/apt/apt.conf.d/20auto-upgrades
+    owner: root:root
+    permissions: "0644"
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+      APT::Periodic::Download-Upgradeable-Packages "1";
+      APT::Periodic::AutocleanInterval "7";
+
+  - path: /etc/apt/apt.conf.d/52oxytrip-unattended
+    owner: root:root
+    permissions: "0644"
+    content: |
+      // Security updates only; never reboot production unattended.
+      Unattended-Upgrade::Automatic-Reboot "false";
+      Unattended-Upgrade::Remove-Unused-Dependencies "true";
+
+  - path: /etc/fail2ban/jail.d/sshd.local
+    owner: root:root
+    permissions: "0644"
+    content: |
+      [sshd]
+      enabled = true
+      mode = aggressive
+      port = ssh
+      logpath = %(sshd_log)s
+      backend = %(sshd_backend)s
+
+runcmd:
+  # --- 4 GB swap (Payload is memory-hungry; on 8 GB boxes this avoids OOM) ---
+  - |
+    set -eux
+    if [ ! -f /swapfile ]; then
+      fallocate -l 4G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=4096
+      chmod 600 /swapfile
+      mkswap /swapfile
+    fi
+    swapon /swapfile || true
+    grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+
+  # --- Docker Engine + Compose from Docker's official apt repo ---
+  - |
+    set -eux
+    install -m 0755 -d /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+    chmod a+r /etc/apt/keyrings/docker.asc
+    . /etc/os-release
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu ${VERSION_CODENAME} stable" > /etc/apt/sources.list.d/docker.list
+    apt-get update -y
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    systemctl enable --now docker
+    usermod -aG docker deploy
+
+  # --- Firewall ---
+  - |
+    set -eux
+    ufw default deny incoming
+    ufw default allow outgoing
+    ufw allow 22/tcp
+    ufw allow 80/tcp
+    ufw allow 443/tcp
+    ufw --force enable
+
+  # --- Services ---
+  - systemctl enable --now fail2ban
+  - systemctl enable unattended-upgrades
+  - systemctl restart ssh || systemctl restart sshd
+
+  # --- DigitalOcean monitoring agent ---
+  - |
+    set -eux
+    curl -sSL https://repos.insights.digitalocean.com/install.sh | bash
+
+  # --- /opt/oxytrip + clone infra repo (public keys / compose only; no env secrets) ---
+  - |
+    set -eux
+    mkdir -p /opt/oxytrip
+    if [ ! -d /opt/oxytrip/.git ]; then
+      git clone --depth 1 https://github.com/SarasprZimmer/oxytrip-infra.git /opt/oxytrip
+    else
+      git -C /opt/oxytrip pull --ff-only || true
+    fi
+    chown -R deploy:deploy /opt/oxytrip
+    # Keep authorized_keys on the host in sync with the repo copy when present
+    if [ -f /opt/oxytrip/provision/authorized_keys ]; then
+      install -d -m 0700 -o deploy -g deploy /home/deploy/.ssh
+      install -m 0600 -o deploy -g deploy /opt/oxytrip/provision/authorized_keys /home/deploy/.ssh/authorized_keys
+    fi
+
+final_message: |
+  OxyTrip host bootstrap finished. Log in as deploy and run:
+    sudo /opt/oxytrip/provision/verify-host.sh

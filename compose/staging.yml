@@ -1,0 +1,57 @@
+# Staging overlay — GHCR images pinned by FRONTEND_TAG / PANEL_TAG.
+# Moving tag `staging` is what main publishes. This host uses tls internal and
+# path-split routing so the same healthcheck as local can run without DNS.
+#
+#   FRONTEND_TAG=staging PANEL_TAG=staging ./scripts/stack.sh up staging
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    networks:
+      - app
+    volumes:
+      - mongo_data:/data/db
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  frontend:
+    image: ghcr.io/sarasprzimmer/oxytrip-frontend:${FRONTEND_TAG:?set FRONTEND_TAG}
+    pull_policy: always
+    # Entrypoint starts as root only to chown the cache volume, then drops to uid 1001.
+    user: "0:0"
+    volumes:
+      - frontend_next_cache:/app/.next/cache
+
+  panel:
+    image: ghcr.io/sarasprzimmer/oxytripcms:${PANEL_TAG:?set PANEL_TAG}
+    pull_policy: always
+    environment:
+      PORT: "8080"
+      MONGODB_URI: mongodb://mongo:27017/oxytrip-cms
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  edge:
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ../caddy/Caddyfile.local:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  mongo_data:
+  caddy_data:
+  caddy_config:
+  frontend_next_cache:
