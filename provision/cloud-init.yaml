@@ -24,10 +24,11 @@ groups:
   - docker
 
 users:
+  # No primary_group: let useradd create the matching "deploy" group itself.
+  # docker membership is added in runcmd once Docker is installed.
   - name: deploy
     gecos: OxyTrip deploy
-    primary_group: deploy
-    groups: [sudo, docker]
+    groups: [sudo]
     shell: /bin/bash
     lock_passwd: true
     sudo: ALL=(ALL) NOPASSWD:ALL
@@ -41,7 +42,10 @@ disable_root: true
 ssh_pwauth: false
 
 write_files:
-  - path: /etc/ssh/sshd_config.d/99-oxytrip-hardening.conf
+  # OpenSSH uses the FIRST value it reads for each setting, and sshd_config.d files
+  # are read in lexical order. A 99- file loses to the image's 50-cloud-init.conf
+  # (which can set PasswordAuthentication yes), so this must sort first.
+  - path: /etc/ssh/sshd_config.d/01-oxytrip-hardening.conf
     owner: root:root
     permissions: "0644"
     content: |
@@ -94,6 +98,8 @@ write_files:
 runcmd:
   # --- 4 GB swap (Payload is memory-hungry; on 8 GB boxes this avoids OOM) ---
   - |
+    # Subshell: set -e must not leak into later runcmd items.
+    (
     set -eux
     if [ ! -f /swapfile ]; then
       fallocate -l 4G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=4096
@@ -102,9 +108,12 @@ runcmd:
     fi
     swapon /swapfile || true
     grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+    )
 
   # --- Docker Engine + Compose from Docker's official apt repo ---
   - |
+    # Subshell: set -e must not leak into later runcmd items.
+    (
     set -eux
     install -m 0755 -d /etc/apt/keyrings
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
@@ -115,9 +124,12 @@ runcmd:
     apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
     systemctl enable --now docker
     usermod -aG docker deploy
+    )
 
   # --- Firewall ---
   - |
+    # Subshell: set -e must not leak into later runcmd items.
+    (
     set -eux
     ufw default deny incoming
     ufw default allow outgoing
@@ -125,6 +137,7 @@ runcmd:
     ufw allow 80/tcp
     ufw allow 443/tcp
     ufw --force enable
+    )
 
   # --- Services ---
   - systemctl enable --now fail2ban
@@ -133,11 +146,16 @@ runcmd:
 
   # --- DigitalOcean monitoring agent ---
   - |
+    # Subshell: set -e must not leak into later runcmd items.
+    (
     set -eux
     curl -sSL https://repos.insights.digitalocean.com/install.sh | bash
+    )
 
   # --- /opt/oxytrip + clone infra repo (public keys / compose only; no env secrets) ---
   - |
+    # Subshell: set -e must not leak into later runcmd items.
+    (
     set -eux
     mkdir -p /opt/oxytrip
     if [ ! -d /opt/oxytrip/.git ]; then
@@ -151,6 +169,7 @@ runcmd:
       install -d -m 0700 -o deploy -g deploy /home/deploy/.ssh
       install -m 0600 -o deploy -g deploy /opt/oxytrip/provision/authorized_keys /home/deploy/.ssh/authorized_keys
     fi
+    )
 
 final_message: |
   OxyTrip host bootstrap finished. Log in as deploy and run:

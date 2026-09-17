@@ -142,6 +142,31 @@ doctl compute droplet delete oxytrip-provision-test --force
 
 The 4 GB swap check still passes on the small box — this tests **provisioning**, not capacity.
 
+### If `deploy` login is refused
+
+`Permission denied (publickey)` a few minutes after boot means cloud-init didn't finish setting
+up the user. Don't weaken SSH to get in — use the droplet's **Access → Recovery Console** in the
+control panel (use **Reset root password** there if prompted; the password is emailed), then:
+
+```bash
+cloud-init status --long
+id deploy
+grep -iE "deploy|useradd|error|fail|traceback" /var/log/cloud-init.log | tail -30
+```
+
+Fix `cloud-init.yaml`, destroy the droplet, and retest on a **fresh** one — never patch a test
+droplet by hand; the test proves the file alone produces a working host.
+
+### Pitfalls this file already guards against
+
+- **sshd setting precedence:** OpenSSH keeps the *first* value it reads, and `sshd_config.d/*.conf`
+  is read in lexical order — so the hardening drop-in is `01-…`, ahead of the image's
+  `50-cloud-init.conf`. A `99-` name would be silently overridden.
+- **`set -e` leaking across `runcmd`:** cloud-init runs every `runcmd` item as one script, so each
+  block runs in its own `( … )` subshell; one failing step can't skip the rest.
+- **Groups that don't exist yet:** `deploy` is created with `sudo` only; `docker` membership is
+  added after Docker installs.
+
 ---
 
 ## Constraints
