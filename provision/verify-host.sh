@@ -5,6 +5,11 @@
 
 set -euo pipefail
 
+# PIPEFAIL RULE for this script: never pipe a command into a reader that can stop
+# early (awk ...exit, grep -q, head). The writer then dies of SIGPIPE (exit 141),
+# pipefail reports failure, and set -e aborts the script or flips a check's result.
+# Capture the output into a variable first, then parse it with a here-string.
+
 PASS=0
 FAIL=0
 
@@ -28,7 +33,9 @@ need_root() {
 sshd_effective() {
   # Prefer sshd -T (effective config); fall back to grepping fragments.
   if command -v sshd >/dev/null 2>&1; then
-    sshd -T 2>/dev/null | awk -v k="$1" 'tolower($1)==tolower(k) {print tolower($2); exit}'
+    local cfg
+    cfg="$(sshd -T 2>/dev/null || true)"
+    awk -v k="$1" 'tolower($1)==tolower(k) {print tolower($2); exit}' <<<"${cfg}"
   fi
 }
 
@@ -61,33 +68,36 @@ else
   fail "deploy user missing"
 fi
 
-if id -nG deploy 2>/dev/null | tr ' ' '\n' | grep -qx docker; then
+deploy_groups="$(id -nG deploy 2>/dev/null || true)"
+if grep -qx docker <<<"$(tr ' ' '\n' <<<"${deploy_groups}")"; then
   pass "deploy is in the docker group"
 else
   fail "deploy is not in the docker group"
 fi
 
 # --- UFW ---
-if ufw status 2>/dev/null | grep -qi 'Status: active'; then
+ufw_out="$(ufw status 2>/dev/null || true)"
+if grep -qi 'Status: active' <<<"${ufw_out}"; then
   pass "ufw is active"
 else
   fail "ufw is not active"
 fi
 
-ufw_out="$(ufw status 2>/dev/null || true)"
 mapfile -t allowed < <(echo "${ufw_out}" | grep -E 'ALLOW' | grep -oE '[0-9]+/tcp' | cut -d/ -f1 | sort -nu)
 
 expected=(22 80 443)
 # Exactly these three (and no extras that are ALLOW IN)
 extra=0
 missing=0
+allowed_list="$(printf '%s\n' "${allowed[@]:-}")"
+expected_list="$(printf '%s\n' "${expected[@]}")"
 for p in "${expected[@]}"; do
-  if ! printf '%s\n' "${allowed[@]:-}" | grep -qx "$p"; then
+  if ! grep -qx "$p" <<<"${allowed_list}"; then
     missing=1
   fi
 done
 for p in "${allowed[@]:-}"; do
-  if ! printf '%s\n' "${expected[@]}" | grep -qx "$p"; then
+  if ! grep -qx "$p" <<<"${expected_list}"; then
     extra=1
   fi
 done
@@ -99,15 +109,16 @@ else
 fi
 
 # --- unattended-upgrades ---
-if dpkg -l unattended-upgrades 2>/dev/null | grep -q '^ii'; then
+dpkg_uu="$(dpkg -l unattended-upgrades 2>/dev/null || true)"
+if grep -q '^ii' <<<"${dpkg_uu}"; then
   pass "unattended-upgrades package installed"
 else
   fail "unattended-upgrades package missing"
 fi
 
-auto_up="$(apt-config dump 2>/dev/null | awk -F'"' '/Unattended-Upgrade /{print $2; exit}')"
-# Also accept Periodic::Unattended-Upgrade "1"
-periodic="$(apt-config dump 2>/dev/null | awk -F'"' '/APT::Periodic::Unattended-Upgrade/{print $2; exit}')"
+apt_dump="$(apt-config dump 2>/dev/null || true)"
+# Accept APT::Periodic::Unattended-Upgrade "1"
+periodic="$(awk -F'"' '/APT::Periodic::Unattended-Upgrade /{print $2; exit}' <<<"${apt_dump}")"
 if [[ "${periodic}" == "1" ]] || systemctl is-enabled unattended-upgrades >/dev/null 2>&1; then
   pass "unattended-upgrades enabled"
 else
@@ -119,7 +130,7 @@ else
   fi
 fi
 
-reboot_flag="$(apt-config dump 2>/dev/null | awk -F'"' '/Unattended-Upgrade::Automatic-Reboot /{print tolower($2); exit}')"
+reboot_flag="$(awk -F'"' '/Unattended-Upgrade::Automatic-Reboot /{print tolower($2); exit}' <<<"${apt_dump}")"
 if [[ -z "${reboot_flag}" ]]; then
   # grep fragments
   if grep -Rqi 'Automatic-Reboot.*"false"' /etc/apt/apt.conf.d/ 2>/dev/null; then
