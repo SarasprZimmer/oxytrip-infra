@@ -159,6 +159,13 @@ droplet by hand; the test proves the file alone produces a working host.
 
 ### Pitfalls this file already guards against
 
+- **Non-ASCII characters (the one that actually broke it):** an em dash in a *comment* reached
+  DigitalOcean mangled into a `\x80` control byte, so cloud-init logged
+  `unacceptable character #x0080` and **rejected the whole file** - no user, no hardening, nothing.
+  `cloud-init.yaml` must stay pure ASCII; the `lint` workflow fails the build otherwise.
+  On a live droplet the tell is `cloud-init status --long` showing `degraded done` with
+  `Failed loading yaml blob`.
+
 - **sshd setting precedence:** OpenSSH keeps the *first* value it reads, and `sshd_config.d/*.conf`
   is read in lexical order — so the hardening drop-in is `01-…`, ahead of the image's
   `50-cloud-init.conf`. A `99-` name would be silently overridden.

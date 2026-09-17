@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Host hardening verification — run on the droplet after cloud-init.
+# Host hardening verification - run on the droplet after cloud-init.
 # Usage: sudo /opt/oxytrip/provision/verify-host.sh
 # Exits non-zero if any check fails.
 
@@ -152,11 +152,11 @@ else
   fail "Docker Compose plugin missing"
 fi
 
-# --- Swap ≥ 4 GB ---
+# --- Swap >= 4 GB ---
 swap_kb="$(awk '/^SwapTotal:/ {print $2}' /proc/meminfo)"
 # 4 GiB = 4194304 kB; allow small rounding (e.g. 4G fallocate)
 if [[ -n "${swap_kb}" && "${swap_kb}" -ge 4000000 ]]; then
-  pass "swap ≥ 4 GB (${swap_kb} kB)"
+  pass "swap >= 4 GB (${swap_kb} kB)"
 else
   fail "swap < 4 GB (SwapTotal=${swap_kb:-0} kB)"
 fi

@@ -1,4 +1,4 @@
-# Staging overlay — GHCR images pinned by FRONTEND_TAG / PANEL_TAG.
+# Staging overlay - GHCR images pinned by FRONTEND_TAG / PANEL_TAG.
 # Moving tag `staging` is what main publishes. This host uses tls internal and
 # path-split routing so the same healthcheck as local can run without DNS.
 #

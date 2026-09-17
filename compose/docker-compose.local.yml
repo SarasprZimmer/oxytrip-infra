@@ -1,4 +1,4 @@
-# Local overlay — build from sibling repos, internal TLS, path-split routing on localhost.
+# Local overlay - build from sibling repos, internal TLS, path-split routing on localhost.
 
 services:
   mongo:

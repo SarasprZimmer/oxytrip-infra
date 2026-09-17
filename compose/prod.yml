@@ -1,4 +1,4 @@
-# Production overlay — GHCR images pinned by SHA (FRONTEND_TAG / PANEL_TAG).
+# Production overlay - GHCR images pinned by SHA (FRONTEND_TAG / PANEL_TAG).
 # Do not set those tags to `staging`, `latest`, or `prod`. Promotion is a
 # deliberate retag of a git SHA. See README.
 

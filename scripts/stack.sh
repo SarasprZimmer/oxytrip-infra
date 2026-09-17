@@ -9,11 +9,11 @@ usage() {
   cat <<'EOF'
 Usage: ./scripts/stack.sh <up|down|logs|ps|pull> [local|staging|prod]
 
-  up local    — build sibling repos and start with tls internal on localhost
-  up staging  — pull ghcr.io images tagged FRONTEND_TAG / PANEL_TAG (env/stack.env)
-  up prod     — pull SHA-pinned images; host-based TLS (SITE_DOMAIN, PANEL_DOMAIN)
-  pull        — docker compose pull (staging/prod). Does not build.
-  down        — stop stack (same overlay as last up if passed)
+  up local    - build sibling repos and start with tls internal on localhost
+  up staging  - pull ghcr.io images tagged FRONTEND_TAG / PANEL_TAG (env/stack.env)
+  up prod     - pull SHA-pinned images; host-based TLS (SITE_DOMAIN, PANEL_DOMAIN)
+  pull        - docker compose pull (staging/prod). Does not build.
+  down        - stop stack (same overlay as last up if passed)
 
 Image tags come from env/stack.env if that file exists (FRONTEND_TAG, PANEL_TAG).
 Prod must pin a git SHA, never the moving staging tag.

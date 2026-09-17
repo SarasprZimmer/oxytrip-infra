@@ -1,4 +1,4 @@
-# Shared service definitions — no env files, no published ports, no build contexts.
+# Shared service definitions - no env files, no published ports, no build contexts.
 # Overlays: docker-compose.local.yml | docker-compose.prod.yml
 
 name: oxytrip

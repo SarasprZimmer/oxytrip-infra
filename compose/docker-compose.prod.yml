@@ -1,4 +1,4 @@
-# Alias of compose/prod.yml — stack.sh uses compose/prod.yml.
+# Alias of compose/prod.yml - stack.sh uses compose/prod.yml.
 # Kept so an older command that still passes this file fails closed the same way.
 
 services:

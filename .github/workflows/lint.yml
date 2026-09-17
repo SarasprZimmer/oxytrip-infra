@@ -1,0 +1,42 @@
+name: lint
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  provision:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      # A single non-ASCII byte (an em dash in a comment) made DigitalOcean deliver
+      # cloud-init.yaml mangled; cloud-init rejected the whole file and applied nothing.
+      - name: Infra files are pure ASCII
+        run: |
+          bad=$(grep -rlP '[^\x00-\x7F]' --include='*.yaml' --include='*.yml' --include='*.sh' --include='Caddyfile' . || true)
+          if [ -n "$bad" ]; then
+            echo "::error::Non-ASCII characters found (cloud-init user-data must be ASCII):"
+            echo "$bad"
+            grep -rnP '[^\x00-\x7F]' $bad
+            exit 1
+          fi
+
+      - name: No CRLF line endings
+        run: |
+          bad=$(grep -rlI $'\r' --include='*.yaml' --include='*.yml' --include='*.sh' --include='Caddyfile' . || true)
+          if [ -n "$bad" ]; then echo "::error::CRLF line endings in: $bad"; exit 1; fi
+
+      - name: cloud-init user-data starts with #cloud-config
+        run: head -1 provision/cloud-init.yaml | grep -qx '#cloud-config'
+
+      - name: cloud-init schema validation
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq cloud-init
+          cloud-init schema --config-file provision/cloud-init.yaml
+
+      - name: Shell scripts parse
+        run: for f in provision/*.sh scripts/*.sh; do bash -n "$f"; done

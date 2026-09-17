@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Curl both app health endpoints through edge Caddy. Exit non-zero on failure or
-# missing required frontend env (presence booleans only — never reads secrets).
+# missing required frontend env (presence booleans only - never reads secrets).
 set -euo pipefail
 
 BASE="${1:-https://localhost}"

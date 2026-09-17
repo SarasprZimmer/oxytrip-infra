@@ -1,4 +1,4 @@
-# Production edge — host-based routing. TLS from Let's Encrypt.
+# Production edge - host-based routing. TLS from Let's Encrypt.
 # Panel expects path-based /cms and /bot on its own hostname (see Oxytrip-cms Caddyfile).
 
 {
@@ -23,7 +23,7 @@
 {$PANEL_DOMAIN} {
 	import common_headers
 
-	# SSE for the support bot — must not buffer (panel Caddyfile flush_interval -1).
+	# SSE for the support bot - must not buffer (panel Caddyfile flush_interval -1).
 	handle /bot/* {
 		reverse_proxy panel:8080 {
 			flush_interval -1

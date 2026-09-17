@@ -1,6 +1,6 @@
 #cloud-config
-# OxyTrip host bootstrap — hardened, Docker-ready, no app deploy.
-# Paste as DigitalOcean user-data (or: doctl compute droplet create --user-data-file …).
+# OxyTrip host bootstrap - hardened, Docker-ready, no app deploy.
+# Paste as DigitalOcean user-data (or: doctl compute droplet create --user-data-file ...).
 # Public keys only; never embed private keys or API tokens here.
 
 timezone: UTC
