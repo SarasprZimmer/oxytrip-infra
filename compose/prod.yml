@@ -16,6 +16,11 @@ services:
     environment:
       PORT: "8080"
       NODE_ENV: production
+    volumes:
+      # Bot conversations live in a SQLite file at DB_PATH unless TURSO_* is set,
+      # and it is not. Without this volume, replacing the container wipes chat
+      # history - which is what happens on Render today.
+      - panel_bot_data:/app/bot/data
 
   edge:
     ports:
@@ -34,3 +39,4 @@ volumes:
   caddy_data:
   caddy_config:
   frontend_next_cache:
+  panel_bot_data:
