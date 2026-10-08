@@ -159,7 +159,7 @@ runcmd:
     set -eux
     mkdir -p /opt/oxytrip
     if [ ! -d /opt/oxytrip/.git ]; then
-      git clone --depth 1 https://github.com/SarasprZimmer/oxytrip-infra.git /opt/oxytrip
+      git clone --depth 1 https://github.com/contentrixmedia/oxytrip-infra.git /opt/oxytrip
     else
       git -C /opt/oxytrip pull --ff-only || true
     fi

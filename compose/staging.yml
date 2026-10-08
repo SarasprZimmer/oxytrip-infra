@@ -24,7 +24,7 @@ services:
       start_period: 20s
 
   frontend:
-    image: ghcr.io/sarasprzimmer/oxytrip-frontend:${FRONTEND_TAG:?set FRONTEND_TAG}
+    image: ghcr.io/contentrixmedia/oxytrip-site:${FRONTEND_TAG:?set FRONTEND_TAG}
     pull_policy: always
     # Entrypoint starts as root only to chown the cache volume, then drops to uid 1001.
     user: "0:0"
@@ -32,7 +32,7 @@ services:
       - frontend_next_cache:/app/.next/cache
 
   panel:
-    image: ghcr.io/sarasprzimmer/oxytripcms:${PANEL_TAG:?set PANEL_TAG}
+    image: ghcr.io/contentrixmedia/oxytrip-cms:${PANEL_TAG:?set PANEL_TAG}
     pull_policy: always
     environment:
       PORT: "8080"

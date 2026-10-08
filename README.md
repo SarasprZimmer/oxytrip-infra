@@ -55,8 +55,8 @@ this directory.
 
 | Service | Image | Dockerfile |
 |---------|--------|------------|
-| frontend | `ghcr.io/sarasprzimmer/oxytrip-frontend` | `oxytrip-frontend/Dockerfile.server` |
-| panel | `ghcr.io/sarasprzimmer/oxytripcms` | `Oxytrip-cms/oxytrip-cms/Dockerfile` |
+| frontend | `ghcr.io/contentrixmedia/oxytrip-site` | `oxytrip-frontend/Dockerfile.server` |
+| panel | `ghcr.io/contentrixmedia/oxytrip-cms` | `Oxytrip-cms/oxytrip-cms/Dockerfile` |
 
 A push to `main` publishes the git SHA and moves the **`staging`** tag. A git tag publishes the SHA only. Nothing auto-tags `latest` or `prod`.
 
